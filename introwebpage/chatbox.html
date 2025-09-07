@@ -1,0 +1,212 @@
+    :root{
+      --bg:#0b1020;
+      --card:#121734;
+      --muted:#7e8aa5;
+      --ring:#3b82f6;
+      --user:#1e293b;
+      --ai:#111827;
+      --text:#e5e7eb;
+      --code:#0b132b;
+      --ok:#10b981;
+      --warn:#f59e0b;
+      --err:#ef4444;
+    }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{
+      margin:0; background:linear-gradient(180deg,var(--bg),#050811);
+      color:var(--text); font:500 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .app{ width:min(1100px,100%); height:85vh; display:grid; grid-template-rows:auto 1fr auto; gap:14px; }
+    .topbar{
+      background:rgba(18,23,52,.7); border:1px solid rgba(255,255,255,.06);
+      backdrop-filter:saturate(140%) blur(8px);
+      border-radius:16px; padding:14px 18px; display:flex; align-items:center; justify-content:space-between;
+      box-shadow:0 8px 30px rgba(0,0,0,.35);
+    }
+    .brand{ display:flex; gap:12px; align-items:center }
+    .dot{ width:12px; height:12px; border-radius:999px; background:var(--ok); box-shadow:0 0 20px var(--ok) }
+    .brand h1{ font-size:18px; margin:0 }
+    .status{ font-size:13px; color:var(--muted) }
+    .panel{ background:var(--card); border:1px solid rgba(255,255,255,.06); border-radius:18px; overflow:hidden; display:grid; grid-template-rows:1fr auto }
+    #chat{
+      padding:16px; overflow-y:auto; scroll-behavior:smooth;
+      background: radial-gradient(1200px 600px at 80% -20%, rgba(59,130,246,.18), transparent 60%),
+                  radial-gradient(800px 300px at 0% 100%, rgba(16,185,129,.12), transparent 60%);
+    }
+    .msg{ display:flex; gap:12px; padding:12px 10px; animation: fadeIn .15s ease-in }
+    .msg.user{ justify-content:flex-end }
+    .msg .bubble{
+      max-width:min(70ch, 90%); padding:12px 14px; border-radius:16px; white-space:pre-wrap; word-wrap:break-word;
+      border:1px solid rgba(255,255,255,.06); box-shadow:0 6px 18px rgba(0,0,0,.25)
+    }
+    .msg.user .bubble{ background:var(--user) }
+    .msg.ai .bubble{ background:var(--ai) }
+    .msg .avatar{ width:34px; height:34px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-weight:700; opacity:.9 }
+    .msg.user .avatar{ background:linear-gradient(135deg,#3b82f6,#06b6d4) }
+    .msg.ai .avatar{ background:linear-gradient(135deg,#10b981,#22d3ee) }
+    .inputbar{ display:flex; gap:10px; padding:12px; background:rgba(0,0,0,.25); border-top:1px solid rgba(255,255,255,.06) }
+    .inputbar input{
+      flex:1; padding:14px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.08); background:#0f142d; color:var(--text);
+      outline:none; transition:.2s box-shadow, .2s border-color
+    }
+    .inputbar input:focus{ border-color:rgba(59,130,246,.6); box-shadow: 0 0 0 3px rgba(59,130,246,.2) }
+    .btn{
+      padding:0 18px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(135deg,#3b82f6,#06b6d4);
+      color:white; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px;
+    }
+    .btn:disabled{ opacity:.6; cursor:not-allowed }
+    .toolbar{ display:flex; align-items:center; gap:10px }
+    select, .key{
+      background:#0f142d; border:1px solid rgba(255,255,255,.08); color:var(--text); border-radius:10px; padding:8px 10px; font-size:14px
+    }
+    .key{ width:260px }
+    .hint{ font-size:12px; color:var(--muted); padding:6px 12px }
+    code{ background:var(--code); padding:.15rem .4rem; border-radius:6px }
+    pre{ background:var(--code); padding:12px; border-radius:12px; overflow:auto }
+    @keyframes fadeIn{ from{ opacity:0; transform: translateY(6px) } to{ opacity:1; transform: none } }
+ 
+  <div class="app">
+    <div class="topbar">
+      <div class="brand">
+        <div class="dot" id="statusDot" title="SDK Loaded"></div>
+        <h1>Gemini AI Chatbot</h1>
+        <span class="status" id="statusText">Ready</span>
+      </div>
+      <div class="toolbar">
+        <select id="model">
+          <option value="gemini-1.5-flash" selected>gemini-1.5-flash (fast)</option>
+          <option value="gemini-1.5-pro">gemini-1.5-pro (stronger)</option>
+        </select>
+        <input class="key" id="apiKey" type="password" placeholder="Enter Google AI API Key" />
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="chat"></div>
+      <div class="inputbar">
+        <input id="prompt" placeholder="Type a message and press Enter…" />
+        <button class="btn" id="send">Send</button>
+      </div>
+    </div>
+
+    <div class="hint">
+      Tip: Paste your API key (from Google AI Studio) above. For production, store the key on a server/proxy.
+    </div>
+  </div>
+  
+    import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+    const els = {
+      chat: document.getElementById('chat'),
+      prompt: document.getElementById('prompt'),
+      send: document.getElementById('send'),
+      modelSel: document.getElementById('model'),
+      apiKey: document.getElementById('apiKey'),
+      statusDot: document.getElementById('statusDot'),
+      statusText: document.getElementById('statusText'),
+    };
+
+    let genAI = null;
+    let chatSession = null;
+
+    function setStatus(msg, ok=true){
+      els.statusText.textContent = msg;
+      els.statusDot.style.background = ok ? getComputedStyle(document.documentElement).getPropertyValue('--ok') : getComputedStyle(document.documentElement).getPropertyValue('--warn');
+      els.statusDot.style.boxShadow = ok ? 0 0 18px var(--ok) : 0 0 18px var(--warn);
+    }
+
+    function addMessage(role, html){
+      const wrap = document.createElement('div');
+      wrap.className = msg ${role};
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = role === 'user' ? 'U' : 'AI';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.innerHTML = html;
+      if(role === 'user'){
+        wrap.appendChild(bubble); wrap.appendChild(avatar);
+      } else {
+        wrap.appendChild(avatar); wrap.appendChild(bubble);
+      }
+      els.chat.appendChild(wrap);
+      els.chat.scrollTop = els.chat.scrollHeight;
+      return bubble;
+    }
+
+    function mdEscape(s){
+      return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    }
+
+    function codeFriendly(text){
+      const parts = text.split(/```/);
+      if(parts.length === 1) return mdEscape(text);
+      return parts.map((seg, i)=> i%2 ? <pre><code>${mdEscape(seg)}</code></pre> : mdEscape(seg)).join('');
+    }
+
+    async function initSession(){
+      // Use key from input field
+      const key = els.apiKey.value.trim();
+      // For testing only, you could hardcode: const key = "YOUR_API_KEY";
+
+      if(!key){ setStatus('Enter API key to start', false); return; }
+      setStatus('Initializing…');
+      genAI = new GoogleGenerativeAI(key);
+
+      const modelName = els.modelSel.value;
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: "You are a concise, helpful web chatbot.",
+        generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 1024 },
+      });
+
+      chatSession = model.startChat({
+        history: [
+          { role: 'user', parts: [{ text: 'Hello!' }] },
+          { role: 'model', parts: [{ text: 'Hi! How can I help you today?' }] },
+        ],
+      });
+
+      setStatus('Ready');
+      if(els.chat.childElementCount === 0){
+        addMessage('ai', '👋 I\'m your <b>Gemini</b>-powered assistant. Paste your API key above and ask me anything!');
+      }
+    }
+
+    async function sendMessage(){
+      if(!chatSession){ await initSession(); if(!chatSession) return; }
+      const text = els.prompt.value.trim();
+      if(!text) return;
+      els.prompt.value = '';
+
+      addMessage('user', mdEscape(text));
+      const aiBubble = addMessage('ai', '');
+
+      els.send.disabled = true;
+      try{
+        const result = await chatSession.sendMessageStream(text);
+        for await (const chunk of result.stream){
+          const part = chunk.text();
+          if(part) aiBubble.innerHTML += codeFriendly(part);
+          els.chat.scrollTop = els.chat.scrollHeight;
+        }
+        await result.response;
+      } catch(err){
+        console.error(err);
+        aiBubble.innerHTML = <span style="color:var(--err)">Error: ${mdEscape(String(err.message || err))}</span>;
+        setStatus('Error — see console', false);
+      } finally {
+        els.send.disabled = false;
+      }
+    }
+
+    els.send.addEventListener('click', sendMessage);
+    els.prompt.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+    });
+    els.apiKey.addEventListener('change', ()=>{ chatSession = null; initSession(); });
+    els.modelSel.addEventListener('change', ()=>{ chatSession = null; initSession(); });
+    window.addEventListener('load', ()=>{ els.prompt.focus(); });
+ 
